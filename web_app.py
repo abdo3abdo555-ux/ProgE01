@@ -37,12 +37,50 @@ def clean_ref_for_matching(ref_string):
         ref_string = ref_string[:-1]
     return "".join([c for c in ref_string if c.isdigit()])
 
+def process_single_line(line_text):
+    """
+    تحليل كل سطر على حدة بناءً على عدد الأرقام مفصولة بمسافات.
+    الأقل من 4 أرقام تجمع لتكون الكمية، و 4 أرقام أو أكثر هي الـ Reference.
+    """
+    # استخراج كافة الأعداد (التي قد تحتوي على حرف في نهايتها للمراجع)
+    tokens = re.findall(r'\d+[a-zA-Z]?', line_text)
+    
+    if not tokens:
+        return 0, ""
+        
+    quantity_sum = 0
+    user_input_ref = ""
+    
+    for token in tokens:
+        # استخراج الأرقام فقط لمعرفة طول العدد
+        digits_only = "".join([c for c in token if c.isdigit()])
+        
+        if len(digits_only) >= 4:
+            # إذا كان 4 أرقام أو أكثر فهو المرجع الرئيسي للسطر
+            user_input_ref = token
+        else:
+            # إذا كان أقل من 4 أرقام نقوم بجمعه مع كميات هذا السطر
+            quantity_sum += int(digits_only)
+            
+    # إذا لم يتم العثور على أي مرجع بـ 4 أرقام، نعتبر آخر عنصر بالسطر هو المرجع
+    if not user_input_ref and tokens:
+        user_input_ref = tokens[-1]
+        digits_only = "".join([c for c in user_input_ref if c.isdigit()])
+        if len(digits_only) < 4 and quantity_sum >= int(digits_only):
+            quantity_sum -= int(digits_only)
+            
+    # إذا لم تكن هناك أي كميات مكتوبة في السطر، نعتبر الكمية الافتراضية 1
+    if quantity_sum == 0:
+        quantity_sum = 1
+        
+    return quantity_sum, user_input_ref
+
 # الشعار الخاص بك في أعلى صفحة الويب
 st.markdown('<div class="brand-title">BY MUSSASHI</div>', unsafe_allow_html=True)
 st.markdown('<div class="brand-sub">~prog:E01~</div>', unsafe_allow_html=True)
 
 st.markdown("### 📝 قم بلصق بيانات الكارتية والكميات هنا:")
-input_text = st.text_area("", height=220, placeholder="مثال الإدخال:\n147 * 4733\n147 + 21 * 5456")
+input_text = st.text_area("", height=220, placeholder="أمثلة الإدخال المعتمدة الآن:\n21 147 5117\n147 4733\n5117")
 
 if st.button("🚀 معالجة البيانات وحساب الحصيلة"):
     db = load_database()
@@ -60,19 +98,8 @@ if st.button("🚀 معالجة البيانات وحساب الحصيلة"):
             if not line_clean:
                 continue
                 
-            quantity = 1
-            user_input_ref = line_clean
-            
-            if "*" in line_clean:
-                parts = line_clean.split("*", 1)
-                expr = parts[0].strip()
-                user_input_ref = parts[1].strip()
-                
-                expr_clean = re.sub(r'[^0-9+\-*/().\s]', '', expr)
-                try:
-                    quantity = int(eval(expr_clean)) if expr_clean else 1
-                except Exception:
-                    quantity = 1
+            # معالجة كل سطر على حدة بشكل منفصل تماماً
+            quantity, user_input_ref = process_single_line(line_clean)
             
             search_digits = clean_ref_for_matching(user_input_ref)
             
@@ -96,7 +123,7 @@ if st.button("🚀 معالجة البيانات وحساب الحصيلة"):
             else:
                 detailed_data.append({"الرقم المختصر": search_digits, "المرجع الكامل": "❌ غير مسجل", "الكمية": quantity, "النوع (Version)": "مجهول"})
 
-        # ترتيب المراجع تصاعدياً من الأصغر للأكبر
+        # ترتيب المراجع تصاعدياً من الأصغر للأكبر لسهولة مراجعتها
         try:
             detailed_data.sort(key=lambda x: int(x["الرقم المختصر"]) if x["الرقم المختصر"].isdigit() else 999999)
         except Exception:
